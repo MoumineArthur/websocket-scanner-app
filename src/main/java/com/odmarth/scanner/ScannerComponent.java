@@ -58,16 +58,15 @@ public class ScannerComponent {
         List<Device> compatibleScanners = new ArrayList<>();
         for (Device device : devices) {
             if (device instanceof Scanner ) {
-            	 Scanner scanner = (Scanner) device;
+            	 Scanner scanner = (Scanner) device;	 
                 try {
                     scanner.setMode(Scanner.RGB_16); 
                     scanner.setResolution(100); 
                     scanner.setFrame(50, 60, 1550, 2225);
-
                     compatibleScanners.add(scanner);
-
                     if (logDevices) {
-                        LOGGER.info("Scanner compatible trouvé : " + device.getFileName());
+                    	System.err.println("Scanner compatible trouvé : " + scanner.getFeederFunctionalUnit());
+                        LOGGER.info("Scanner compatible trouvé : " + scanner.getFileName());
                     }
                 } catch (Exception e) {
                     LOGGER.warning("Scanner incompatible ignoré : " + device.getFileName());

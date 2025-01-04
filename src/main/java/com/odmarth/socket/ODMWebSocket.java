@@ -17,12 +17,13 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import eu.gnome.morena.Device;
+import eu.gnome.morena.Scanner;
 
 public class ODMWebSocket extends WebSocketServer{
 	
 	private static final int TCP_PORT = 6987;
-    private static final String REQUEST_LIST_DEVICES = "LIST_DEVICES";
-    private static final String REQUEST_SCAN_DOCUMENT = "SCAN_DOCUMENT";
+    private static final String REQUEST_LIST_DEVICES = "DEVICES";
+    private static final String REQUEST_SCAN_DOCUMENT = "SCAN_DOC";
     
     private final Set<WebSocket> connections;
     
@@ -51,7 +52,7 @@ public class ODMWebSocket extends WebSocketServer{
             Gson gson = new Gson();
             SocketRequestModel model = gson.fromJson(message, SocketRequestModel.class);
             ScannerComponent scannerComponent = new ScannerComponent();
-
+            System.out.println("Message from client TYPE : " + model.getRequestType());
             switch (model.getRequestType().toUpperCase()) {
                 case REQUEST_LIST_DEVICES:
                     handleListDevices(conn, gson, scannerComponent);
@@ -69,19 +70,34 @@ public class ODMWebSocket extends WebSocketServer{
     }
     
     private void handleListDevices(WebSocket conn, Gson gson, ScannerComponent scannerComponent) {
+    	 System.out.println("Message from client: ");
         try {
             List<Device> devices = scannerComponent.getListeDevices(true);
             conn.send(gson.toJson(devices));
         } catch (Exception e) {
+        	e.printStackTrace();
+        	System.err.println("Failed to retrieve devices: " + e.getMessage());
             sendError(conn, "Failed to retrieve devices: " + e.getMessage(), e);
         }
     }
 
     private void handleScanDocument(WebSocket conn, Gson gson, ScannerComponent scannerComponent, SocketRequestModel model) {
         try {
-            File scannedFile = scannerComponent.scanner(model.getOptions());
-            byte[] fileContent = Files.readAllBytes(scannedFile.toPath());
-            conn.send(fileContent); // Binary response
+        	 List<Device> devices = scannerComponent.getListeDevices(true);
+        	// Device selectedDevice = devices.stream().filter(scanner -> scanner.getFileName()
+        	//		 .equalsIgnoreCase(model.getOptions().getDeviceName())).findFirst().;
+        	 for(Device device: devices) {
+        		 if (device instanceof Scanner ) {
+                	 Scanner scanner = (Scanner) device;	 
+                	 model.getOptions().setDevice(scanner);
+                	 File scannedFile = scannerComponent.scanner(model.getOptions());
+                     byte[] fileContent = Files.readAllBytes(scannedFile.toPath());
+                     conn.send(fileContent); // Binary response
+                     break;
+        		 }
+        		
+        	 }
+           
         } catch (Exception e) {
             sendError(conn, "Failed to scan document: " + e.getMessage(), e);
         }

@@ -16,6 +16,7 @@ import eu.gnome.morena.Device;
 public class ScannerOption {
     
     private Device device;
+    private String deviceName;
     private boolean duplex;
     private boolean adfScan;
     private int resolution;
@@ -28,8 +29,16 @@ public class ScannerOption {
     public void setDevice(Device device) {
         this.device = device;
     }
+    
+    public String getDeviceName() {
+		return deviceName;
+	}
 
-    public boolean isDuplex() {
+	public void setDeviceName(String deviceName) {
+		this.deviceName = deviceName;
+	}
+
+	public boolean isDuplex() {
         return duplex;
     }
 
