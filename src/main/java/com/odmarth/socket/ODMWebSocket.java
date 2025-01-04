@@ -20,55 +20,102 @@ import eu.gnome.morena.Device;
 
 public class ODMWebSocket extends WebSocketServer{
 	
-	private final static int TCP_PORT=6987;
-	private final static String LISTE_DEVICES="DEVICES";
-	private final static String SCAN_DOC="SCAN_DOC";
-	private Set<WebSocket> conns;
-	public ODMWebSocket() throws UnknownHostException {
-		super(new InetSocketAddress(TCP_PORT));
-		conns = new HashSet<>();
-	}
+	private static final int TCP_PORT = 6987;
+    private static final String REQUEST_LIST_DEVICES = "LIST_DEVICES";
+    private static final String REQUEST_SCAN_DOCUMENT = "SCAN_DOCUMENT";
+    
+    private final Set<WebSocket> connections;
+    
+    public ODMWebSocket() {
+        super(new InetSocketAddress(TCP_PORT));
+        connections = new HashSet<>();
+    }
 
-	@Override
-	public void onOpen(WebSocket conn, ClientHandshake handshake) {
-		conns.add(conn);
+    @Override
+    public void onOpen(WebSocket conn, ClientHandshake handshake) {
+        connections.add(conn);
         System.out.println("New connection from " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
-        
-	}
+    }
 
-	@Override
-	public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-		
-		///conn.send();
-		conns.remove(conn);
-		
+    @Override
+    public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+        connections.remove(conn);
         System.out.println("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
-	}
+    }
 
+    @Override
+    public void onMessage(WebSocket conn, String message) {
+        System.out.println("Message from client: " + message);
+
+        try {
+            Gson gson = new Gson();
+            SocketRequestModel model = gson.fromJson(message, SocketRequestModel.class);
+            ScannerComponent scannerComponent = new ScannerComponent();
+
+            switch (model.getRequestType().toUpperCase()) {
+                case REQUEST_LIST_DEVICES:
+                    handleListDevices(conn, gson, scannerComponent);
+                    break;
+                case REQUEST_SCAN_DOCUMENT:
+                    handleScanDocument(conn, gson, scannerComponent, model);
+                    break;
+                default:
+                    conn.send("Unknown request type: " + model.getRequestType());
+            }
+        } catch (Exception e) {
+            conn.send("Error processing message: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void handleListDevices(WebSocket conn, Gson gson, ScannerComponent scannerComponent) {
+        try {
+            List<Device> devices = scannerComponent.getListeDevices(true);
+            conn.send(gson.toJson(devices));
+        } catch (Exception e) {
+            sendError(conn, "Failed to retrieve devices: " + e.getMessage(), e);
+        }
+    }
+
+    private void handleScanDocument(WebSocket conn, Gson gson, ScannerComponent scannerComponent, SocketRequestModel model) {
+        try {
+            File scannedFile = scannerComponent.scanner(model.getOptions());
+            byte[] fileContent = Files.readAllBytes(scannedFile.toPath());
+            conn.send(fileContent); // Binary response
+        } catch (Exception e) {
+            sendError(conn, "Failed to scan document: " + e.getMessage(), e);
+        }
+    }
+
+    private void sendError(WebSocket conn, String message, Exception e) {
+        System.err.println(message);
+        if (e != null) {
+            e.printStackTrace();
+        }
+        conn.send(message);
+    }
+
+    /*
 	@Override
 	public void onMessage(WebSocket conn, String message) {
 		System.out.println("Message from client: " + message);
-//        for (WebSocket sock : conns) {
-//            sock.send(message);
-//        }
+
 		Gson gson = new Gson();
 		SocketRequestModel model = gson.fromJson(message, SocketRequestModel.class);
 		ScannerComponent component = new ScannerComponent();
 		
 		System.out.println("Model : " + gson.toJson(model));
 		if(LISTE_DEVICES.equalsIgnoreCase(model.getRequestType())) {
-			List<Device> devices = component.getListeDevices();
+			List<Device> devices = component.getListeDevices(true);
 			conn.send(gson.toJson(devices));
 		}
 		
 		if(SCAN_DOC.equalsIgnoreCase(model.getRequestType())) {
-			;
 			try {
 				File doc = component.scanner(model.getOptions());
 				byte[] fileContent = Files.readAllBytes(doc.toPath());
 				conn.send(fileContent);
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				conn.send("FAILDED TO TO SCAN DOC FROM DEVICE ( " + e.getMessage() +")");
 			}
@@ -76,16 +123,15 @@ public class ODMWebSocket extends WebSocketServer{
 		}
 		
         conn.send("TETTET RESTT");
-	}
+	}*/
 
-	@Override
-	public void onError(WebSocket conn, Exception ex) {
-		 //ex.printStackTrace();
+    @Override
+    public void onError(WebSocket conn, Exception ex) {
         if (conn != null) {
-            conns.remove(conn);
-            // do some thing if required
+            connections.remove(conn);
+            System.out.println("Error from connection: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
         }
-        System.out.println("ERROR from " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
-	}
+        ex.printStackTrace();
+    }
 
 }

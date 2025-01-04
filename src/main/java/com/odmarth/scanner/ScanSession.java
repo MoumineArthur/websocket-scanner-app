@@ -3,80 +3,118 @@ package com.odmarth.scanner;
 import java.io.File;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import eu.gnome.morena.Device;
 import eu.gnome.morena.TransferListener;
 import eu.gnome.morena.wia.WIAScanner;
 import eu.gnome.morena.DeviceBase;
 
-class ScanSession {
+public class ScanSession{
+	 private static final Logger LOGGER = Logger.getLogger(ScanSession.class.getName());
+	 
+	    private MultiFileTransferHandler transferHandler;
+	    private LinkedBlockingQueue<String> queue;
+	    private boolean transferFinished = false;
+	    private AtomicInteger blockedThreadCount;
 
-	private MultiFileTransferHandler th;
-	private LinkedBlockingQueue<String> queue;
-	private boolean transferFinished = false;
-	private AtomicInteger blockedThreadCount;
+	    private static final String END_OF_OPERATION = ""; // string designating an End of operation
 
-	public static final String EOP = ""; // string designating an End of operation
+//	    public void startSession(Device device, int item) throws Exception {
+//	        startSession(device, item, 0); // 0 indicates scanning until feeder is empty
+//	    }
+	    
+	    public void startSession(Device device, int item) throws Exception {
+	    	startSinglePageSession(device, item);
+	    }
 
-	public void startSession(Device device, int item) throws Exception {
-		startSession(device, item, 0); // 0 - means scanning until feeder is empty
-	}
+	    public void startSession(Device device, int item, int pages) throws Exception {
+	        validateDevice(device);
 
-	public void startSession(Device device, int item, int pages) throws Exception {
-		queue = new LinkedBlockingQueue<String>();
-		blockedThreadCount = new AtomicInteger(0);
-		transferFinished = false;
-		// enable scanning of selected number of pages (applies for ADF)
-		if (pages != 0 && device instanceof WIAScanner) {
-			((WIAScanner) device).setPgcount(pages);
-		}
-		th = new MultiFileTransferHandler(pages);
-		device.setFileName("mi_" + System.currentTimeMillis());
-		((DeviceBase) device).startTransfer(th, item);
-	}
+	        queue = new LinkedBlockingQueue<>();
+	        blockedThreadCount = new AtomicInteger(0);
+	        transferFinished = false;
 
-	public File getImageFile() {
-		String filename = queue.poll();
-		if (filename == null && !transferFinished) {
-			try {
-				blockedThreadCount.incrementAndGet();
-				filename = queue.take();
-				blockedThreadCount.decrementAndGet();
-			} catch (InterruptedException e) {
-			}
-		}
-		if (filename.isEmpty()) // EOP
-		{
-			releaseBlockedThreads();
-		}
-		return filename == null || filename.isEmpty() ? null : new File(filename);
-	}
+	        if (pages > 0 && device instanceof WIAScanner) {
+	            ((WIAScanner) device).setPgcount(pages);
+	        }
 
-	public boolean isEmptyFeeder() {
-		return th != null ? th.code == 0 : false;
-	}
+	        transferHandler = new MultiFileTransferHandler(pages);
+	        device.setFileName("mi_" + System.currentTimeMillis());
+	        ((DeviceBase) device).startTransfer(transferHandler, item);
+	    }
 
-	public int getErrorCode() {
-		return th.code;
-	}
+	    public void startSinglePageSession(Device device, int item) throws Exception {
+	        queue = new LinkedBlockingQueue<>();
+	        blockedThreadCount = new AtomicInteger(0);
+	        transferFinished = false;
 
-	public String getErrorMessage() {
-		return th.error;
-	}
+	        // Configure the scanner to scan only one page
+	        if (device instanceof WIAScanner) {
+	            ((WIAScanner) device).setPgcount(1); // Limit to one page
+	        }
 
-	private void releaseBlockedThreads() {
-		int count = blockedThreadCount.getAndSet(0);
-		if (count > 0) {
-			for (int i = 0; i < count; i++) {
-				try {
-					queue.put(EOP);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-	}
+	        transferHandler = new MultiFileTransferHandler(1); // Expecting one page
+	        device.setFileName("singlePage_" + System.currentTimeMillis());
+	        ((DeviceBase) device).startTransfer(transferHandler, item);
+	    }
 
+	    public File getImageFile() {
+	        try {
+	            String filename = queue.poll();
+	            if (filename == null && !transferFinished) {
+	                blockedThreadCount.incrementAndGet();
+	                filename = queue.take();
+	                blockedThreadCount.decrementAndGet();
+	            }
+
+	            if (END_OF_OPERATION.equals(filename)) {
+	                releaseBlockedThreads();
+	            }
+
+	            return filename == null || filename.isEmpty() ? null : new File(filename);
+	        } catch (InterruptedException e) {
+	            Thread.currentThread().interrupt();
+	            LOGGER.log(Level.SEVERE, "Thread interrupted while retrieving image file", e);
+	            return null;
+	        }
+	    }
+
+	    public boolean isEmptyFeeder() {
+	        return transferHandler != null && transferHandler.code == 0;
+	    }
+
+	    public int getErrorCode() {
+	        return transferHandler != null ? transferHandler.code : -1;
+	    }
+
+	    public String getErrorMessage() {
+	        return transferHandler != null ? transferHandler.error : "No transfer handler initialized";
+	    }
+
+	    private void releaseBlockedThreads() {
+	        int count = blockedThreadCount.getAndSet(0);
+	        for (int i = 0; i < count; i++) {
+	            try {
+	                queue.put(END_OF_OPERATION);
+	            } catch (InterruptedException e) {
+	                Thread.currentThread().interrupt();
+	                LOGGER.log(Level.WARNING, "Thread interrupted while releasing blocked threads", e);
+	            }
+	        }
+	    }
+	    
+	    private void validateDevice(Device device) throws IllegalArgumentException {
+	        if (device == null) {
+	            throw new IllegalArgumentException("Device cannot be null");
+	        }
+	    }
+	    public static String getFileExtension(File file) {
+	        String name = file.getName();
+	        int dotIndex = name.lastIndexOf('.');
+	        return (dotIndex > 0 && dotIndex + 1 < name.length()) ? name.substring(dotIndex + 1) : "";
+	    }
 	public static String getExt(File file) {
 		String name = file.getName();
 		int ix = name.lastIndexOf('.');
@@ -95,62 +133,46 @@ class ScanSession {
 	class MultiFileTransferHandler implements TransferListener {
 
 		int code;
-		String error;
+        String error;
 
-		int pages; // expected page count (0 - until feeder is empty)
-		AtomicInteger pcounter; // page counter
+        private final int pages; // Expected number of pages (0 for until feeder is empty)
+        private final AtomicInteger pageCounter = new AtomicInteger(0);
 
-		public MultiFileTransferHandler(int pages) {
-			this.pages = pages;
-			pcounter = new AtomicInteger(0);
-			code = -1;
-			error = "No error";
-		}
+        public MultiFileTransferHandler(int pages) {
+            this.pages = pages;
+            this.code = -1;
+            this.error = "No error";
+        }
 
-		/**
-		 * Transferred image is handled in this callback method. File containing the
-		 * image is provided as an argument. The image type may vary depending on the
-		 * interface (Wia/ICA) and the device driver. Typical format includes BMP for
-		 * WIA scanners and JPEG for WIA camera and for ICA devices. Please note that
-		 * this method runs in different thread than that where the
-		 * device.startTransfer() has been called.
-		 *
-		 * @param file - the file containing the acquired image
-		 *
-		 * @see eu.gnome.morena.TransferDoneListener#transferDone(java.io.File)
-		 */
-		@Override
-		public void transferDone(File file) {
-			try {
-				queue.put(file.getAbsolutePath());
-				if (pcounter.incrementAndGet() == pages) // expected number of pages scanned
-				{
-					queue.put(EOP);
-				}
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
+        @Override
+        public void transferDone(File file) {
+            try {
+                queue.put(file.getAbsolutePath());
+                if (pageCounter.incrementAndGet() == pages) {
+                    queue.put(END_OF_OPERATION);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.SEVERE, "Thread interrupted during transferDone", e);
+            }
+        }
 
-		/**
-		 * This callback method is called when scanning process failed for any reason.
-		 * Description of the problem is provided.
-		 */
-		@Override
-		public void transferProgress(int percent) {
-			System.err.println("transfer " + percent + "%");
-		}
+        @Override
+        public void transferProgress(int percent) {
+            LOGGER.log(Level.INFO, "Transfer progress: {0}%", percent);
+        }
 
-		@Override
-		public void transferFailed(int code, String error) {
-			this.code = code;
-			this.error = error;
-			transferFinished = true;
-			try {
-				queue.put(EOP);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
+        @Override
+        public void transferFailed(int code, String error) {
+            this.code = code;
+            this.error = error;
+            transferFinished = true;
+            try {
+                queue.put(END_OF_OPERATION);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.SEVERE, "Thread interrupted during transferFailed", e);
+            }
+        }
 	}
 }

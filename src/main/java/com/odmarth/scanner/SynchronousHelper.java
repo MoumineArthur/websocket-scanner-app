@@ -3,6 +3,8 @@ package com.odmarth.scanner;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.imageio.ImageIO;
 
@@ -10,166 +12,155 @@ import eu.gnome.morena.Device;
 import eu.gnome.morena.DeviceBase;
 import eu.gnome.morena.TransferDoneListener;
 
-class SynchronousHelper {
+public class SynchronousHelper {
 
 	public static final int WIA_ERROR_PAPER_EMPTY = 417;
+    private static final Logger LOGGER = Logger.getLogger(SynchronousHelper.class.getName());
 
+	 /**
+     * TransferDoneListener implementation for handling scanned document as BufferedImage.
+     */
+    static class ImageTransferHandler implements TransferDoneListener {
+        BufferedImage image;
+        int code;
+        String error;
+        boolean transferDone = false;
+
+        @Override
+        public void transferDone(File file) {
+            if (file != null) {
+                try {
+                    image = ImageIO.read(file);
+                } catch (IOException e) {
+                    error = "Error reading image file: " + e.getMessage();
+                    LOGGER.log(Level.SEVERE, error, e);
+                }
+            }
+            notifyRequestor();
+        }
+
+        @Override
+        public void transferFailed(int code, String error) {
+            this.code = code;
+            this.error = error;
+            LOGGER.log(Level.SEVERE, "Transfer failed with code {0}: {1}", new Object[]{code, error});
+            notifyRequestor();
+        }
+
+        private synchronized void notifyRequestor() {
+            transferDone = true;
+            this.notify();
+        }
+    }
+    
+    
 	/**
-	 * TransferDoneListener interface implementation that handles a scanned document
-	 * as BufferedImage.
-	 *
-	 */
-	static class ImageTransferHandler implements TransferDoneListener {
+     * TransferDoneListener implementation for handling scanned document as File.
+     */
+    static class FileTransferHandler implements TransferDoneListener {
+        File imageFile;
+        int code;
+        String error;
+        boolean transferDone = false;
 
-		BufferedImage image;
-		int code;
-		String error;
-		boolean transferDone = false;
+        @Override
+        public void transferDone(File file) {
+            imageFile = file;
+            notifyRequestor();
+        }
 
-		public void transferDone(File file) {
-			if (file != null) {
-				try {
-					image = ImageIO.read(file);
-				} catch (IOException e) {
-					error = e.getLocalizedMessage();
-				}
-			}
-			notifyRequestor();
-		}
+        @Override
+        public void transferFailed(int code, String error) {
+            this.code = code;
+            this.error = error;
+            LOGGER.log(Level.SEVERE, "Transfer failed with code {0}: {1}", new Object[]{code, error});
+            notifyRequestor();
+        }
 
-		public void transferFailed(int code, String error) {
-			this.code = code;
-			this.error = error;
-			notifyRequestor();
-		}
+        private synchronized void notifyRequestor() {
+            transferDone = true;
+            this.notify();
+        }
+    }
+    
+    /**
+     * Scans an image using the specified device and returns it as a BufferedImage.
+     *
+     * @param device The scanning device.
+     * @return BufferedImage of the scanned document.
+     * @throws Exception If an error occurs during scanning.
+     */
+    public static BufferedImage scanImage(Device device) throws Exception {
+        return scanImage(device, 0);
+    }
 
-		private synchronized void notifyRequestor() {
-			transferDone = true;
-			this.notify();
-		}
+    /**
+     * Scans an image using the specified device and functional unit, and returns it as a BufferedImage.
+     *
+     * @param device The scanning device.
+     * @param item   The functional unit (e.g., flatbed, document feeder).
+     * @return BufferedImage of the scanned document.
+     * @throws Exception If an error occurs during scanning.
+     */
+    public static BufferedImage scanImage(Device device, int item) throws Exception {
+        if (device == null) {
+            throw new IllegalArgumentException("Device cannot be null.");
+        }
 
-	}
+        ImageTransferHandler handler = new ImageTransferHandler();
 
-	/**
-	 * TransferDoneListener interface implementation that handles a scanned document
-	 * as a File.
-	 *
-	 */
-	static class FileTransferHandler implements TransferDoneListener {
+        synchronized (handler) {
+            ((DeviceBase) device).startTransfer(handler, item);
+            while (!handler.transferDone) {
+                handler.wait();
+            }
+        }
 
-		File imageFile;
-		int code;
-		String error;
-		boolean transferDone = false;
+        if (handler.image != null) {
+            return handler.image;
+        }
 
-		/**
-		 * Transferred image is handled in this callback method. File containing the
-		 * image is provided as an argument. The image type may vary depending on the
-		 * interface (Wia/ICA) and the device driver. Typical format includes BMP for
-		 * WIA scanners and JPEG for WIA camera and for ICA devices. Please note that
-		 * this method runs in different thread than that where the
-		 * device.startTransfer() has been called.
-		 *
-		 * @param file - the file containing the acquired image
-		 *
-		 * @see eu.gnome.morena.TransferDoneListener#transferDone(java.io.File)
-		 */
-		public void transferDone(File file) {
-			imageFile = file;
-			notifyRequestor();
-		}
+        throw new Exception("Failed to scan image: " + handler.error);
+    }
 
-		/**
-		 * This callback method is called when scanning process failed for any reason.
-		 * Description of the problem is provided.
-		 */
-		public void transferFailed(int code, String error) {
-			this.code = code;
-			this.error = error;
-			notifyRequestor();
-		}
+    /**
+     * Scans an image using the specified device and returns it as a File.
+     *
+     * @param device The scanning device.
+     * @return File containing the scanned document.
+     * @throws Exception If an error occurs during scanning.
+     */
+    public static File scanFile(Device device) throws Exception {
+        return scanFile(device, 0);
+    }
 
-		private synchronized void notifyRequestor() {
-			transferDone = true;
-			this.notify();
-		}
+    /**
+     * Scans an image using the specified device and functional unit, and returns it as a File.
+     *
+     * @param device The scanning device.
+     * @param item   The functional unit (e.g., flatbed, document feeder).
+     * @return File containing the scanned document.
+     * @throws Exception If an error occurs during scanning.
+     */
+    public static File scanFile(Device device, int item) throws Exception {
+        if (device == null) {
+            throw new IllegalArgumentException("Device cannot be null.");
+        }
 
-	}
+        FileTransferHandler handler = new FileTransferHandler();
 
-	/**
-	 * Convenient method that starts scanning process on specified device from
-	 * default functional unit (0) and returns a scanned document as a
-	 * BufferedImage. Device driver UI is displayed according showUI parameter.
-	 *
-	 * @param device
-	 * @return - BufferedImage of the scanned document
-	 * @throws Exception
-	 */
-	public static BufferedImage scanImage(Device device) throws Exception {
-		return scanImage(device, 0);
-	}
+        synchronized (handler) {
+            ((DeviceBase) device).startTransfer(handler, item);
+            while (!handler.transferDone) {
+                handler.wait();
+            }
+        }
 
-	/**
-	 * Convenient method that starts scanning process on specified device from
-	 * specified functional unit (0, 1, ...) and returns a scanned document as a
-	 * BufferedImage. Device driver UI is displayed according showUI parameter.
-	 *
-	 * @param device
-	 * @return - BufferedImage of the scanned document
-	 * @throws Exception
-	 */
-	public static BufferedImage scanImage(Device device, int item) throws Exception {
-		ImageTransferHandler th = new ImageTransferHandler();
+        if (handler.imageFile != null) {
+            return handler.imageFile;
+        }
 
-		synchronized (th) {
-			((DeviceBase) device).startTransfer(th, item);
-			while (!th.transferDone) {
-				th.wait();
-			}
-		}
-		if (th.image != null) {
-			return th.image;
-		}
-		throw new Exception(th.error);
-	}
-
-	/**
-	 * Convenient method that starts scanning process on specified device from
-	 * default functional unit (0) and returns a scanned document as a File. Device
-	 * driver UI is displayed according showUI parameter.
-	 *
-	 * @param device
-	 * @return - File containing an image of the scanned document
-	 * @throws Exception
-	 */
-	public static File scanFile(Device device) throws Exception {
-		return scanFile(device, 0);
-	}
-
-	/**
-	 * Convenient method that starts scanning process on specified device from
-	 * specified functional unit (0, 1, ...) and returns a scanned document as a
-	 * File. Device driver UI is displayed according showUI parameter.
-	 *
-	 * @param device
-	 * @param item   - scanner's functional unit (flatbed, document feeder, ...)
-	 *               number
-	 * @return - File containing an image of the scanned document
-	 * @throws Exception
-	 */
-	public static File scanFile(Device device, int item) throws Exception {
-		FileTransferHandler th = new FileTransferHandler();
-
-		synchronized (th) {
-			((DeviceBase) device).startTransfer(th, item);
-			while (!th.transferDone) {
-				th.wait();
-			}
-		}
-		if (th.imageFile != null) {
-			return th.imageFile;
-		}
-		throw new Exception(th.error);
-	}
+        throw new Exception("Failed to scan file: " + handler.error);
+    }
 
 }
