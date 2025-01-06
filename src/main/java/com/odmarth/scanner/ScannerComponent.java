@@ -60,12 +60,13 @@ public class ScannerComponent {
             if (device instanceof Scanner ) {
             	 Scanner scanner = (Scanner) device;	 
                 try {
-                    scanner.setMode(Scanner.RGB_16); 
-                    scanner.setResolution(100); 
-                    scanner.setFrame(50, 60, 1550, 2225);
+                  //  scanner.setMode(Scanner.RGB_16); 
+                  //  scanner.setResolution(100); 
+                  //  scanner.setFrame(50, 60, 1550, 2225);
                     compatibleScanners.add(scanner);
                     if (logDevices) {
                     	System.err.println("Scanner compatible trouvé : " + scanner.getFeederFunctionalUnit());
+                    	System.err.println("Scanner compatible trouvé : " + scanner.getResolution());
                         LOGGER.info("Scanner compatible trouvé : " + scanner.getFileName());
                     }
                 } catch (Exception e) {
@@ -164,9 +165,13 @@ public class ScannerComponent {
 
         try {
             // Configuration du scanner
-            scanner.setMode(Scanner.RGB_16);
-            scanner.setResolution(100);
-            scanner.setFrame(50, 60, 1550, 2225);
+           /* scanner.setMode(Scanner.RGB_16);
+            scanner.setResolution(300);
+            scanner.setFrame(50, 60, 1550, 2225);*/
+            
+            scanner.setMode(Scanner.GRAY_8); // Mode niveaux de gris, idéal pour documents texte
+          //  scanner.setResolution(400); // Résolution à 300 DPI pour un bon compromis entre qualité et taille
+            scanner.setFrame(0, 0, 2481, 3508); // Utiliser toute la surface du scanner
 
             if (scanner.isDuplexSupported() && option.isDuplex()) {
                 scanner.setDuplexEnabled(true);
@@ -186,11 +191,12 @@ public class ScannerComponent {
 
             // Scanning et enregistrement de l'image
             BufferedImage image = SynchronousHelper.scanImage(scanner);
+          //  BufferedImage processed = ImageProcessor.processImageForVisibility(image);
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
             String imageFileName = "JPEG_" + timeStamp;
 
             File outputFile = File.createTempFile(imageFileName, ".png", outputDirectory.toFile());
-            
+           
             try (FileOutputStream fileOutputStream = new FileOutputStream(outputFile)) {
                 ImageIO.write(image, "png", fileOutputStream);
             }

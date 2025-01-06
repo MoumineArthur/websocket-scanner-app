@@ -1,14 +1,18 @@
 package com.odmarth.socket;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.odmarth.model.SocketRequestModel;
 import com.odmarth.scanner.ScannerComponent;
 
@@ -86,13 +90,17 @@ public class ODMWebSocket extends WebSocketServer{
         	 List<Device> devices = scannerComponent.getListeDevices(true);
         	// Device selectedDevice = devices.stream().filter(scanner -> scanner.getFileName()
         	//		 .equalsIgnoreCase(model.getOptions().getDeviceName())).findFirst().;
+        	 if(devices==null || devices.isEmpty()) {
+        		 sendError(conn, "No scanner detected", 404 );
+        	 }
         	 for(Device device: devices) {
         		 if (device instanceof Scanner ) {
                 	 Scanner scanner = (Scanner) device;	 
                 	 model.getOptions().setDevice(scanner);
                 	 File scannedFile = scannerComponent.scanner(model.getOptions());
                      byte[] fileContent = Files.readAllBytes(scannedFile.toPath());
-                     conn.send(fileContent); // Binary response
+                   //  conn.send(fileContent); // Binary response
+                     sendSuccessWithImage(conn, fileContent);
                      break;
         		 }
         		
@@ -103,6 +111,20 @@ public class ODMWebSocket extends WebSocketServer{
         }
     }
 
+    
+    
+    public void sendSuccessWithImage(WebSocket conn,   byte[] imageBytes) {
+  
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("status", "success");
+            response.addProperty("message", "Scanning completed successfully.");
+            response.addProperty("image", base64Image); // Base64 image string
+            conn.send(response.toString());
+            
+        
+    }
     private void sendError(WebSocket conn, String message, Exception e) {
         System.err.println(message);
         if (e != null) {
@@ -110,40 +132,20 @@ public class ODMWebSocket extends WebSocketServer{
         }
         conn.send(message);
     }
-
-    /*
-	@Override
-	public void onMessage(WebSocket conn, String message) {
-		System.out.println("Message from client: " + message);
-
-		Gson gson = new Gson();
-		SocketRequestModel model = gson.fromJson(message, SocketRequestModel.class);
-		ScannerComponent component = new ScannerComponent();
-		
-		System.out.println("Model : " + gson.toJson(model));
-		if(LISTE_DEVICES.equalsIgnoreCase(model.getRequestType())) {
-			List<Device> devices = component.getListeDevices(true);
-			conn.send(gson.toJson(devices));
-		}
-		
-		if(SCAN_DOC.equalsIgnoreCase(model.getRequestType())) {
-			try {
-				File doc = component.scanner(model.getOptions());
-				byte[] fileContent = Files.readAllBytes(doc.toPath());
-				conn.send(fileContent);
-			} catch (Exception e) {
-				e.printStackTrace();
-				conn.send("FAILDED TO TO SCAN DOC FROM DEVICE ( " + e.getMessage() +")");
-			}
-			
-		}
-		
-        conn.send("TETTET RESTT");
-	}*/
+    
+    
+    private void sendError(WebSocket conn, String errorMessage, int errorCode) {
+        JsonObject errorResponse = new JsonObject();
+        errorResponse.addProperty("status", "error");
+        errorResponse.addProperty("message", errorMessage);
+        errorResponse.addProperty("code", errorCode);
+        conn.send(errorResponse.toString());
+    }
 
     @Override
     public void onError(WebSocket conn, Exception ex) {
         if (conn != null) {
+        	sendError(conn, ex.getMessage(), 500);
             connections.remove(conn);
             System.out.println("Error from connection: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
         }
