@@ -1,6 +1,11 @@
 package com.odmarth.scanner;
 
+import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.awt.image.ConvolveOp;
+import java.awt.image.Kernel;
+import java.awt.image.RescaleOp;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -152,7 +157,7 @@ public class ScannerComponent {
         }
     }*/
     
-    public File scanner(final ScannerOption option) throws Exception {
+   /* public File scanner(final ScannerOption option) throws Exception {
         // Validation des paramètres
         if (option == null) {
             throw new IllegalArgumentException("ScannerOption cannot be null.");
@@ -165,14 +170,16 @@ public class ScannerComponent {
 
         try {
             // Configuration du scanner
-           /* scanner.setMode(Scanner.RGB_16);
-            scanner.setResolution(300);
-            scanner.setFrame(50, 60, 1550, 2225);*/
+           // scanner.setMode(Scanner.RGB_16);
+          //  scanner.setResolution(300);
+          //  scanner.setFrame(50, 60, 1550, 2225);
             
-            scanner.setMode(Scanner.GRAY_8); // Mode niveaux de gris, idéal pour documents texte
-          //  scanner.setResolution(400); // Résolution à 300 DPI pour un bon compromis entre qualité et taille
-            scanner.setFrame(0, 0, 2481, 3508); // Utiliser toute la surface du scanner
-
+            scanner.setMode(Scanner.RGB_8); 
+            scanner.setResolution(300);
+          scanner.setFrame(0, 0, 2481, 3508); 
+         //   scanner.setMode(Scanner.GRAY_8);
+        	 
+            
             if (scanner.isDuplexSupported() && option.isDuplex()) {
                 scanner.setDuplexEnabled(true);
             } else {
@@ -191,15 +198,26 @@ public class ScannerComponent {
 
             // Scanning et enregistrement de l'image
             BufferedImage image = SynchronousHelper.scanImage(scanner);
-          //  BufferedImage processed = ImageProcessor.processImageForVisibility(image);
+            
+            // Resize (zoom) the image (double its size, for example)
+            BufferedImage zoomedImage = zoomImage(image,4);
+                        
+           // BufferedImage processed = ImageProcessor.processImageForVisibility(image);
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-            String imageFileName = "JPEG_" + timeStamp;
+            String imageFileName = "JPEG_" + timeStamp +".png";
 
-            File outputFile = File.createTempFile(imageFileName, ".png", outputDirectory.toFile());
+            File outputFile = new File(imageFileName);
+        //    ImageIO.write(zoomedImage, "png", outputFile);
+       //     File outputFile = new File("scanned_best_quality.png");
+           // ImageIO.write(image, "png", outputFile);
+            
+         //  File outputFile = File.createTempFile(imageFileName, ".png", outputDirectory.toFile());
+         //  ImageIO.write(image, "png", outputFile);
            
             try (FileOutputStream fileOutputStream = new FileOutputStream(outputFile)) {
                 ImageIO.write(image, "png", fileOutputStream);
             }
+            
             return outputFile;
 
         } catch (Exception ex) {
@@ -207,7 +225,80 @@ public class ScannerComponent {
             Logger.getLogger(ScannerComponent.class.getName()).log(Level.SEVERE, errorMessage, ex);
             throw new Exception(errorMessage, ex);
         }
+    }*/
+
+    public File scanner(final ScannerOption option) throws Exception {
+        if (option == null || option.getDevice() == null) {
+            throw new IllegalArgumentException("ScannerOption and device cannot be null.");
+        }
+
+        Scanner scanner = (Scanner) option.getDevice();
+            scanner.getSupportedResolutions();
+            for(Integer ed :  scanner.getSupportedResolutions()) {
+            	 System.out.println("Supported : " + ed);
+            }
+        try {
+            scanner.setMode(Scanner.RGB_16); // Meilleure qualité des couleurs
+            scanner.setResolution(300); // Haute résolution
+            scanner.setFrame(0, 0, 4962, 7016); // A4 en 600 DPI
+
+            if (scanner.isDuplexSupported() && option.isDuplex()) {
+                scanner.setDuplexEnabled(true);
+            }
+
+            // Obtenir le dossier temporaire du système
+            Path tempDir = Files.createTempDirectory("scan_temp_");
+            
+            // Générer un nom de fichier unique
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            File outputFile = new File(tempDir.toFile(), "Scan_" + timeStamp + ".png");
+
+         // Scanner et traiter l'image
+            BufferedImage image = SynchronousHelper.scanImage(scanner);
+            BufferedImage enhancedImage = enhanceImage(image);
+            BufferedImage blurredImage = applyGaussianBlur(enhancedImage);
+
+            // Sauvegarde de l'image dans le dossier temporaire
+          //  ImageIO.write(blurredImage, "tiff", outputFile);
+            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                ImageIO.write(blurredImage, "png", fos);
+            }
+
+            System.out.println("Image saved at: " + outputFile.getAbsolutePath());
+            return outputFile;
+        } catch (Exception ex) {
+            Logger.getLogger(ScannerComponent.class.getName()).log(Level.SEVERE, "Failed to scan", ex);
+            throw new Exception("Failed to scan document: " + ex.getMessage(), ex);
+        }
     }
 
+    
+    private BufferedImage applyGaussianBlur(BufferedImage image) {
+        float[] matrix = {
+            1f / 16, 2f / 16, 1f / 16,
+            2f / 16, 4f / 16, 2f / 16,
+            1f / 16, 2f / 16, 1f / 16
+        };
+        Kernel kernel = new Kernel(3, 3, matrix);
+        ConvolveOp op = new ConvolveOp(kernel);
+        return op.filter(image, null);
+    }
+    
+    private BufferedImage enhanceImage(BufferedImage image) {
+        RescaleOp rescaleOp = new RescaleOp(1.2f, 15, null); // Augmente la luminosité et le contraste
+        return rescaleOp.filter(image, null);
+    }
+    public static BufferedImage zoomImage(BufferedImage image, int scaleFactor) {
+        int newWidth = image.getWidth() * scaleFactor;
+        int newHeight = image.getHeight() * scaleFactor;
+        Image scaledImage = image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+
+        BufferedImage zoomedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = zoomedImage.createGraphics();
+        g2d.drawImage(scaledImage, 0, 0, null);
+        g2d.dispose();
+
+        return zoomedImage;  // Return the zoomed image
+    }
     
 }

@@ -36,7 +36,13 @@ public class ODMWebSocket extends WebSocketServer{
         connections = new HashSet<>();
     }
 
-    @Override
+	@Override
+	public void onStart() {
+		// TODO Auto-generated method stub
+		
+	}
+   
+	@Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
         connections.add(conn);
         System.out.println("New connection from " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
@@ -72,6 +78,17 @@ public class ODMWebSocket extends WebSocketServer{
             e.printStackTrace();
         }
     }
+  
+    @Override
+    public void onError(WebSocket conn, Exception ex) {
+        if (conn != null) {
+        	sendError(conn, ex.getMessage(), 500);
+            connections.remove(conn);
+            System.out.println("Error from connection: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
+        }
+        ex.printStackTrace();
+    }
+
     
     private void handleListDevices(WebSocket conn, Gson gson, ScannerComponent scannerComponent) {
     	 System.out.println("Message from client: ");
@@ -91,7 +108,7 @@ public class ODMWebSocket extends WebSocketServer{
         	// Device selectedDevice = devices.stream().filter(scanner -> scanner.getFileName()
         	//		 .equalsIgnoreCase(model.getOptions().getDeviceName())).findFirst().;
         	 if(devices==null || devices.isEmpty()) {
-        		 sendError(conn, "No scanner detected", 404 );
+        		 sendError(conn, "Aucun  scanner detecte.", 404 );
         	 }
         	 for(Device device: devices) {
         		 if (device instanceof Scanner ) {
@@ -110,10 +127,8 @@ public class ODMWebSocket extends WebSocketServer{
             sendError(conn, "Failed to scan document: " + e.getMessage(), e);
         }
     }
-
-    
-    
-    public void sendSuccessWithImage(WebSocket conn,   byte[] imageBytes) {
+ 
+    private void sendSuccessWithImage(WebSocket conn,   byte[] imageBytes) {
   
             String base64Image = Base64.getEncoder().encodeToString(imageBytes);
 
@@ -123,7 +138,6 @@ public class ODMWebSocket extends WebSocketServer{
             response.addProperty("image", base64Image); // Base64 image string
             conn.send(response.toString());
             
-        
     }
     private void sendError(WebSocket conn, String message, Exception e) {
         System.err.println(message);
@@ -133,7 +147,6 @@ public class ODMWebSocket extends WebSocketServer{
         conn.send(message);
     }
     
-    
     private void sendError(WebSocket conn, String errorMessage, int errorCode) {
         JsonObject errorResponse = new JsonObject();
         errorResponse.addProperty("status", "error");
@@ -142,14 +155,5 @@ public class ODMWebSocket extends WebSocketServer{
         conn.send(errorResponse.toString());
     }
 
-    @Override
-    public void onError(WebSocket conn, Exception ex) {
-        if (conn != null) {
-        	sendError(conn, ex.getMessage(), 500);
-            connections.remove(conn);
-            System.out.println("Error from connection: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
-        }
-        ex.printStackTrace();
-    }
 
 }

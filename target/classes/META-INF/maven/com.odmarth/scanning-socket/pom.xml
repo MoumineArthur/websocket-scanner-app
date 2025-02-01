@@ -1,98 +1,112 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<groupId>com.odmarth</groupId>
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+   <groupId>com.odmarth</groupId>
 	<artifactId>scanning-socket</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>OdMArth document scan socket</name>
-	<properties>
-		<maven.compiler.target>1.8</maven.compiler.target>
-		<maven.compiler.source>1.8</maven.compiler.source>
-	</properties>
-	<dependencies>
 
-<!--		<dependency>-->
-<!--			<groupId>org.slf4j</groupId>-->
-<!--			<artifactId>jul-to-slf4j</artifactId>-->
-<!--			<version>1.7.25</version>-->
-<!--		</dependency>-->
-		
-<!--		<dependency>-->
-<!--    <groupId>org.slf4j</groupId>-->
-<!--    <artifactId>slf4j-api</artifactId>-->
-<!--    <version>2.0.16</version>-->
-<!--    <scope>runtime</scope>-->
-<!--</dependency>-->
+    <properties>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+    </properties>
 
-		<dependency>
-			<groupId>morena</groupId>
-			<artifactId>morena</artifactId>
-			<version>7.0</version>
-		</dependency>
-		<dependency>
-			<groupId>morena</groupId>
-			<artifactId>morena-licence</artifactId>
-			<version>7.0</version>
-		</dependency>
-		<dependency>
-			<groupId>morena</groupId>
-			<artifactId>morena-osx</artifactId>
-			<version>7.0</version>
-		</dependency>
-		<dependency>
-			<groupId>morena</groupId>
-			<artifactId>morena-win</artifactId>
-			<version>7.0</version>
-		</dependency>
-		<dependency>
-			<groupId>morena</groupId>
-			<artifactId>morena-launcher</artifactId>
-			<version>7.0</version>
-		</dependency>
+    <dependencies>
+        <dependency>
+            <groupId>morena</groupId>
+            <artifactId>morena</artifactId>
+            <version>7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>morena</groupId>
+            <artifactId>morena-licence</artifactId>
+            <version>7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>morena</groupId>
+            <artifactId>morena-osx</artifactId>
+            <version>7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>morena</groupId>
+            <artifactId>morena-win</artifactId>
+            <version>7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>morena</groupId>
+            <artifactId>morena-launcher</artifactId>
+            <version>7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>jdeli</groupId>
+            <artifactId>jdeli</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.3</version> <!-- Remove duplicate and use only the latest -->
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.8.0</version>
+        </dependency>
+    </dependencies>
 
-		<dependency>
-			<groupId>jdeli</groupId>
-			<artifactId>jdeli</artifactId>
-			<version>1.0</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/org.java-websocket/Java-WebSocket -->
-		<dependency>
-			<groupId>org.java-websocket</groupId>
-			<artifactId>Java-WebSocket</artifactId>
-			<version>1.3.0</version>
-		</dependency>
-		<dependency>
-		    <groupId>com.google.code.gson</groupId>
-		    <artifactId>gson</artifactId>
-		    <version>2.8.0</version>
-		</dependency>
-	</dependencies>
+    <build>
+        <plugins>
+            <!-- Maven Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
 
-	<build>
-		<plugins>
-		<plugin>
-			    <groupId>org.apache.maven.plugins</groupId>
-			    <artifactId>maven-compiler-plugin</artifactId>
-			    <version>3.1</version>
-			    <configuration>
-			        <source>1.8</source>
-			        <target>1.8</target>
-			    </configuration>
-			</plugin>
-			<plugin>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<configuration>
-					<archive>
-						<manifest>
-							<mainClass>fully.qualified.MainClass</mainClass>
-						</manifest>
-					</archive>
-					<descriptorRefs>
-						<descriptorRef>jar-with-dependencies</descriptorRef>
-					</descriptorRefs>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
+            <!-- Maven Jar Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.odmarth.socket.ScanningApp</mainClass> <!-- Update with your main class -->
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Assembly Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.odmarth.socket.ScanningApp</mainClass> <!-- Update with your main class -->
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
