@@ -242,7 +242,9 @@ public class ScannerComponent {
             scanner.setResolution(300); // Haute résolution
            // scanner.setFrame(0, 0, 4962, 7016); // A4 en 600 DPI
 //            scanner.setFrame(0, 0, 2480, 1754);
-            scanner.setFrame(0, 0, 2480, 1024);
+          //  scanner.setFrame(0, 0, 2480, 1024);
+            scanner.setFrame(0, 0, 2480, 950);
+            
 
             if (scanner.isDuplexSupported() && option.isDuplex()) {
                 scanner.setDuplexEnabled(true);
