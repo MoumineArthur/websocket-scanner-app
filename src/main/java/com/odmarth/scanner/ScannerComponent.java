@@ -238,9 +238,11 @@ public class ScannerComponent {
             	 System.out.println("Supported : " + ed);
             }
         try {
-            scanner.setMode(Scanner.RGB_16); // Meilleure qualité des couleurs
+           // scanner.setMode(Scanner.RGB_16); // Meilleure qualité des couleurs
             scanner.setResolution(300); // Haute résolution
-            scanner.setFrame(0, 0, 4962, 7016); // A4 en 600 DPI
+           // scanner.setFrame(0, 0, 4962, 7016); // A4 en 600 DPI
+//            scanner.setFrame(0, 0, 2480, 1754);
+            scanner.setFrame(0, 0, 2480, 1024);
 
             if (scanner.isDuplexSupported() && option.isDuplex()) {
                 scanner.setDuplexEnabled(true);
@@ -255,13 +257,13 @@ public class ScannerComponent {
 
          // Scanner et traiter l'image
             BufferedImage image = SynchronousHelper.scanImage(scanner);
-            BufferedImage enhancedImage = enhanceImage(image);
-            BufferedImage blurredImage = applyGaussianBlur(enhancedImage);
+          //  BufferedImage enhancedImage = enhanceImage(image);
+          //  BufferedImage blurredImage = applyGaussianBlur(enhancedImage);
 
             // Sauvegarde de l'image dans le dossier temporaire
           //  ImageIO.write(blurredImage, "tiff", outputFile);
             try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                ImageIO.write(blurredImage, "png", fos);
+                ImageIO.write(zoomImage150(image), "png", fos);
             }
 
             System.out.println("Image saved at: " + outputFile.getAbsolutePath());
@@ -273,7 +275,21 @@ public class ScannerComponent {
     }
 
     
-    private BufferedImage applyGaussianBlur(BufferedImage image) {
+    public static BufferedImage zoomImage150(BufferedImage originalImage) {
+        // Calculer la nouvelle taille (150%)
+        int newWidth = (int) (originalImage.getWidth() * 1.5);
+        int newHeight = (int) (originalImage.getHeight() * 1.5);
+
+        BufferedImage zoomedImage = new BufferedImage(newWidth, newHeight, originalImage.getType());
+        Graphics2D g = zoomedImage.createGraphics();
+
+        Image scaledInstance = originalImage.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+        g.drawImage(scaledInstance, 0, 0, null);
+        g.dispose();
+
+        return zoomedImage;
+    }
+    /*private BufferedImage applyGaussianBlur(BufferedImage image) {
         float[] matrix = {
             1f / 16, 2f / 16, 1f / 16,
             2f / 16, 4f / 16, 2f / 16,
@@ -282,9 +298,9 @@ public class ScannerComponent {
         Kernel kernel = new Kernel(3, 3, matrix);
         ConvolveOp op = new ConvolveOp(kernel);
         return op.filter(image, null);
-    }
+    }*/
     
-    private BufferedImage enhanceImage(BufferedImage image) {
+    /*private BufferedImage enhanceImage(BufferedImage image) {
         RescaleOp rescaleOp = new RescaleOp(1.2f, 15, null); // Augmente la luminosité et le contraste
         return rescaleOp.filter(image, null);
     }
@@ -299,6 +315,6 @@ public class ScannerComponent {
         g2d.dispose();
 
         return zoomedImage;  // Return the zoomed image
-    }
+    }*/
     
 }
